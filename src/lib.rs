@@ -549,6 +549,15 @@ mod tests {
         }
     }
 
+    #[test]
+    fn validate_long() {
+        const PGN_STRING: &str = r#"""
+1. e4 e5 2. Qf3 Qf6 3. Qxf6 Nxf6 4. Nh3 d6 5. Bb5+ Bd7 6. Bxd7+ Nbxd7 7. f3 Be7 8. d3 O-O 9. Nc3 c6 10. Bg5 h6 11. Bxf6 Bxf6 12. O-O-O a6 13. Na4 Bg5+ 14. f4 exf4 15. Nxg5 hxg5 16. h4 f6 17. hxg5 fxg5 18. Rdg1 b5 19. Nc3 b4 20. Ne2 Ne5 21. Rh5 g4 22. Nd4 Rae8 23. c3 bxc3 24. bxc3 Nxd3+ 25. Kc2 Nf2 26. Nxc6 Rxe4 27. g3 f3 28. Nd4 Nh3 29. Nf5 Re2+ 30. Kb3 Rb8+ 31. Ka3 f2 32. Rh1 Rb7 33. Nxd6 Rbb2 34. Nc4 Rxa2+ 35. Kb3 g6 36. Ra5 Rxa5 37. Nxa5 Kg7 38. Rf1 Ng5 39. Nc4 Nf3 40. Ne3 Nd2+ 41. Ka3 Nxf1 42. Nxg4 Re1 43. Nxf2 Ra1+ 44. Kb2 Ra5 45. c4 Nxg3 46. Nd3 Ne4 47. Kc2 g5 48. Ne1 g4 49. Kd3 Nf6 50. Ng2 g3 51. Kd4 Nh5 52. c5 Rxc5 53. Kxc5 a5 54. Ne3 Kf6 55. Kb5 Ke5 56. Kxa5 Ke4 57. Ng2 Kf3 58. Ne1+ Kf2 59. Nd3+ Ke3 60. Ne1 Kf2 61. Nd3+ Kf1 62. Ne5 g2 63. Nf3 Nf4 64. Nd2+ Ke2 65. Nc4 g1=Q 66. Kb5 Qb1+ 67. Kc5 Kd3 68. Ne5+ Ke4 69. Kd6 Qc1 70. Nc6 Qa3+ 71. Kc7 Qc3 72. Kd6 Ng6 73. Kd7 Ne5+ 74. Kd6 Qxc6+ 75. Ke7 Qd7+ 76. Kf6 Qf5+ 77. Ke7 Ng6+ 78. Ke8 Qf8+ 79. Kd7 Ke5 80. Kc7 Qd6+ 81. Kb7 Ke6 82. Ka7 Kd7 83. Kb7 Kd8 84. Ka7 Qc5+ 85. Kb7 Qc7+ 86. Ka6 Kc8 87. Kb5 Ne5 88. Kb4 Qc4+ 89. Ka5 Qa2+ 90. Kb5 Kc7 91. Kb4 Qc4+ 92. Ka3 Qc1+ 93. Kb4 Kc6 94. Kb3 Kc5 95. Ka4 Qc2+ 96. Ka5 Nc4+ 97. Ka6 Qa4+ 98. Kb7 Qc6+ 99. Kb8 Qe8+ 100. Kb7 Nd6+ 101. Kc7 Qc8# 0-1
+"""#;
+
+        test_parse(Cursor::new(PGN_STRING));
+    }
+
     #[ignore]
     #[test]
     fn validate_from_file_5000_games() {
