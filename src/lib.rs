@@ -8,7 +8,7 @@ use fairypieces_engine::{
     piece::Piece,
     game::{Game, GameStateDelta, Outcome},
     games::international_chess,
-    math::IVec2,
+    math::{IVec2, IVecComponent},
 };
 use pgn_reader::{Visitor, Role, San, SanPlus, Square, BufferedReader, CastlingSide, Color};
 
@@ -198,9 +198,9 @@ fn san_to_delta(game: &Game<SquareBoardGeometry>, index: usize, san_plus: SanPlu
             let src_definition_index = role_to_piece_definition_index(role);
             let dst_definition_index = promotion.map(|role| role_to_piece_definition_index(role))
                 .unwrap_or(src_definition_index);
-            let src: [Option<i32>; 2] = [
-                file.map(|file| file as i32),
-                rank.map(|rank| rank as i32),
+            let src: [Option<IVecComponent>; 2] = [
+                file.map(|file| file as IVecComponent),
+                rank.map(|rank| rank as IVecComponent),
             ];
             let dst = square_to_tile(to);
 
