@@ -5,8 +5,8 @@ use std::io::{self, Read};
 use std::collections::HashSet;
 use fairypieces_engine::{
     board::{Transformation, SquareBoardGeometry, Isometry},
-    piece::Piece,
-    game::{Game, GameStateDelta, Outcome},
+    piece::PieceDefinitionIndex,
+    game::{Game, GameStateDelta, ReversibleGameStateDelta, Outcome, PlayerIndex},
     games::international_chess,
     math::{IVec2, IVecComponent},
 };
@@ -157,6 +157,28 @@ fn just_one<I: Iterator>(mut iter: I) -> Option<I::Item> {
     }
 }
 
+fn just_one_move<I: Iterator>(mut iter: I, index: usize, san_plus: &SanPlus) -> Result<I::Item, ValidationError> {
+    let matched_move = iter.next().ok_or_else(|| {
+        // No legal moves found.
+        ValidationError::InvalidMove {
+            index,
+            mv: format!("{}", san_plus),
+            ty: InvalidMoveType::Illegal,
+        }
+    })?;
+
+    if let Some(_) = iter.next() {
+        // Found another legal move.
+        return Err(ValidationError::InvalidMove {
+            index,
+            mv: format!("{}", san_plus),
+            ty: InvalidMoveType::Underspecified,
+        });
+    }
+
+    Ok(matched_move)
+}
+
 
 fn pgn_outcome_to_fp_outcome(from: pgn_reader::Outcome) -> Outcome {
     match from {
@@ -168,7 +190,7 @@ fn pgn_outcome_to_fp_outcome(from: pgn_reader::Outcome) -> Outcome {
     }
 }
 
-fn role_to_piece_definition_index(role: Role) -> usize {
+fn role_to_piece_definition_index(role: Role) -> PieceDefinitionIndex {
     use Role::*;
     use international_chess::*;
 
@@ -188,10 +210,10 @@ fn square_to_tile(square: Square) -> IVec2 {
     [file.into(), rank.into()].into()
 }
 
-fn san_to_delta(game: &Game<SquareBoardGeometry>, index: usize, san_plus: SanPlus) -> Result<Option<GameStateDelta<SquareBoardGeometry>>, ValidationError> {
+fn san_to_delta(game: &Game<SquareBoardGeometry>, index: usize, san_plus: SanPlus) -> Result<Option<ReversibleGameStateDelta<SquareBoardGeometry>>, ValidationError> {
     let san = san_plus.san.clone();
-    let current_player = game.move_log().current_state().currently_playing_player_index;
-    let next_player = (current_player + 1) % game.rules().players().get();
+    let current_player = game.move_log().current_state().current_player_index();
+    let next_player = (current_player + 1) % game.rules().players().get() as PlayerIndex;
 
     let result = match san {
         San::Normal { role, file, rank, capture, to, promotion } => {
@@ -205,7 +227,7 @@ fn san_to_delta(game: &Game<SquareBoardGeometry>, index: usize, san_plus: SanPlu
             let dst = square_to_tile(to);
 
             let available_moves = game.available_moves().moves();
-            let mut matched_moves = available_moves.into_iter()
+            let matched_moves = available_moves.into_iter()
                 .filter(|mv| {
                     let delta = mv.delta();
                     // Select changed tiles with matching destination tile
@@ -252,29 +274,13 @@ fn san_to_delta(game: &Game<SquareBoardGeometry>, index: usize, san_plus: SanPlu
                     just_one(current_srcs).is_some()
                 });
 
-            let matched_move = matched_moves.next().ok_or_else(|| {
-                // No legal moves found.
-                ValidationError::InvalidMove {
-                    index,
-                    mv: format!("{}", san_plus),
-                    ty: InvalidMoveType::Illegal,
-                }
-            })?;
+            let matched_move = just_one_move(matched_moves, index, &san_plus)?;
 
-            if let Some(_) = matched_moves.next() {
-                // Found another legal move.
-                return Err(ValidationError::InvalidMove {
-                    index,
-                    mv: format!("{}", san_plus),
-                    ty: InvalidMoveType::Underspecified,
-                });
-            }
-
-            matched_move.delta().forward().clone()
+            matched_move.delta().clone()
         }
         San::Castle(castling_side) => {
             let current_state = game.move_log().current_state();
-            let current_player = current_state.currently_playing_player_index;
+            let current_player = current_state.current_player_index();
             let isometry: Isometry<SquareBoardGeometry> =
                 if current_player == international_chess::PLAYER_WHITE {
                     Isometry::default()
@@ -289,16 +295,23 @@ fn san_to_delta(game: &Game<SquareBoardGeometry>, index: usize, san_plus: SanPlu
                 CastlingSide::KingSide => [[7, 0].into(), [6, 0].into(), [5, 0].into()],
                 CastlingSide::QueenSide => [[0, 0].into(), [2, 0].into(), [3, 0].into()],
             };
-            let mut result = GameStateDelta::with_next_player(next_player);
+            let mut pattern = GameStateDelta::with_next_player(next_player);
+            let move_index = game.move_log().len();
 
-            result.set(isometry.apply(src_king), None);
-            result.set(isometry.apply(src_rook), None);
-            result.set(isometry.apply(dst_king), current_state.tile(game.rules().board(), isometry.apply(src_king))
-                .and_then(|piece| piece.get_piece().map(Piece::clone_moved)));
-            result.set(isometry.apply(dst_rook), current_state.tile(game.rules().board(), isometry.apply(src_rook))
-                .and_then(|piece| piece.get_piece().map(Piece::clone_moved)));
+            pattern.set(isometry.apply(src_king), None, move_index);
+            pattern.set(isometry.apply(src_rook), None, move_index);
+            pattern.set(isometry.apply(dst_king), current_state.tile(game.rules().board(), isometry.apply(src_king))
+                .and_then(|piece| piece.get_piece().cloned()), move_index);
+            pattern.set(isometry.apply(dst_rook), current_state.tile(game.rules().board(), isometry.apply(src_rook))
+                .and_then(|piece| piece.get_piece().cloned()), move_index);
 
-            result
+            let available_moves = game.available_moves().moves_from(isometry.apply(src_king));
+            let matched_moves = available_moves.into_iter()
+                .filter(|available_move| pattern.is_part_of(available_move.delta().forward()))
+                .cloned();
+            let matched_move = just_one_move(matched_moves, index, &san_plus)?;
+
+            matched_move.delta().clone()
         }
         San::Put { role: _, to: _ } => {
             unimplemented!("\"Put\" moves are not implemented.");
@@ -321,10 +334,10 @@ impl PgnGame {
 
         for (index, san_plus) in self.moves.iter().cloned().enumerate() {
             // println!("Validating move: {:?}", san_plus);
-            let current_player = game.move_log().current_state().currently_playing_player_index;
+            let current_player = game.move_log().current_state().current_player_index();
             san_to_delta(&game, index, san_plus.clone()).and_then(|delta| {
                 if let Some(delta) = delta {
-                    game.normalize_and_append_delta(delta).unwrap();
+                    game.append_delta(delta).unwrap();
                     Ok(())
                 } else {
                     Err(ValidationError::InvalidMove {
@@ -503,6 +516,24 @@ mod tests {
     }
 
     #[test]
+    fn validate_king_side_castle() {
+        const PGN_STRING: &str = r#"""
+1. Nf3 h6 2. g4 g6 3. Bh3 f6 4. O-O
+"""#;
+
+        test_parse(Cursor::new(PGN_STRING));
+    }
+
+    #[test]
+    fn validate_queen_side_castle() {
+        const PGN_STRING: &str = r#"""
+1. Na3 a6 2. d4 b6 3. Be3 c6 4. Qd2 d6 5. O-O-O
+"""#;
+
+        test_parse(Cursor::new(PGN_STRING));
+    }
+
+    #[test]
     fn validate_promotion_to_queen() {
         const PGN_STRING: &str = r#"""
 [Termination "Normal"]
@@ -535,12 +566,12 @@ mod tests {
 
         let games = parse_games_all_sequential(Cursor::new(PGN_STRING)).unwrap();
         let mut game = games[0].clone();
+        let moves = game.available_moves().moves_from(move_from).collect::<Vec<_>>();
 
+        assert_eq!(8, moves.len());
         println!("\nMoves:");
 
-        game.evaluate();
-
-        for (index, available_move) in game.available_moves().moves_from(move_from).enumerate() {
+        for (index, available_move) in moves.into_iter().enumerate() {
             let mut game = game.clone();
 
             game.append(available_move.clone()).unwrap();
