@@ -7,7 +7,9 @@ use std::collections::HashSet;
 use fairypieces_engine::{
     board::{Transformation, SquareBoardGeometry, Isometry},
     piece::PieceDefinitionIndex,
-    game::{Game, GameState, GameStateDelta, ReversibleGameStateDelta, Outcome, PlayerIndex},
+    victory_conditions::Outcome,
+    delta::{GameStateDelta, ReversibleGameStateDelta},
+    game::{Game, GameState, PlayerIndex},
     games::international_chess,
     math::{IVec2, IVecComponent},
 };
