@@ -308,12 +308,14 @@ fn san_to_delta(game: &Game<SquareBoardGeometry>, index: usize, san_plus: SanPlu
             let mut pattern = GameStateDelta::with_next_player(next_player);
             let move_index = game.move_log().len();
 
-            pattern.set(isometry.apply(src_king), None, move_index);
-            pattern.set(isometry.apply(src_rook), None, move_index);
+            pattern.set(isometry.apply(src_king), None);
+            pattern.set(isometry.apply(src_rook), None);
             pattern.set(isometry.apply(dst_king), current_state.tile(game.rules().board(), isometry.apply(src_king))
-                .and_then(|piece| piece.get_piece().cloned()), move_index);
+                .and_then(|piece| piece.get_piece().cloned()));
             pattern.set(isometry.apply(dst_rook), current_state.tile(game.rules().board(), isometry.apply(src_rook))
-                .and_then(|piece| piece.get_piece().cloned()), move_index);
+                .and_then(|piece| piece.get_piece().cloned()));
+
+            pattern.push_affecting_move(move_index);
 
             let available_moves = game.available_moves().moves_from(isometry.apply(src_king));
             let matched_moves = available_moves.into_iter()
