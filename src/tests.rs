@@ -77,9 +77,7 @@ fn list_moves(game: &mut Game<SquareBoardGeometry>, from: Option<IVec2>, expecte
     println!("\nMoves:");
 
     for (index, available_move) in moves.into_iter().enumerate() {
-        let mut game = game.clone();
-
-        game.append_unchecked_without_evaluation(available_move.clone());
+        let game = game.clone().append_without_evaluation(available_move.clone()).unwrap();
 
         println!("Possible move #{index}:\n{game}", game=SquareBoardGeometry::print(&game));
     }
