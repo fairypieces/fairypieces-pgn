@@ -110,6 +110,15 @@ fn validate_checkmate() {
 }
 
 #[test]
+fn validate_stalemate() {
+    test_parse_one_from_str(r#"""
+[Termination "Normal"]
+
+1. Nf3 e5 2. Nxe5 f6 3. Nf3 f5 4. d3 b5 5. g3 Bb7 6. Bg2 h6 7. e4 fxe4 8. dxe4 Bxe4 9. Nc3 Bxf3 10. Bxf3 Nf6 11. Bxa8 Qe7+ 12. Be3 Qb4 13. O-O Qxb2 14. Bxa7 Qxc3 15. Qe2+ Kf7 16. Qxb5 c6 17. Qxb8 Qa5 18. Bd4 Qb5 19. Qc7 Ne8 20. Qxd7+ Kg8 21. Qxe8 Qd5 22. c3 Qc4 23. Bxc6 Qf7 24. Qxf7+ Kxf7 25. a4 Kg8 26. a5 Kf7 27. a6 Bc5 28. Bxc5 Ra8 29. Bxa8 Kg6 30. a7 Kh5 31. Bf3+ Kg5 32. a8=Q Kf5 33. Bd4 Kg6 34. c4 Kg5 35. c5 Kg6 36. c6 Kg5 37. c7 Kg6 38. c8=Q Kg5 39. h4+ Kg6 40. h5+ Kg5 41. g4 Kh4 42. Ra5 g6 43. hxg6 h5 44. g7 hxg4 45. Bxg4 1/2-1/2
+    """#, None);
+}
+
+#[test]
 fn validate_castle_king_side_valid_no_threat() {
     test_parse_one_from_str(r#"""
 1. Nf3 Nf6 2. g4 g5 3. Bh3 Bh6 4. O-O O-O
@@ -270,7 +279,7 @@ fn validate_promotion_to_queen() {
     test_parse_one_from_str(r#"""
 [Termination "Normal"]
 
-1. h4 g5 2. hxg5 Nf6 3. g6 Bh6 4. g7 Be3 5. gxh8=Q+ Ng8 6. Qxg8#
+1. h4 g5 2. hxg5 Nf6 3. g6 Bh6 4. g7 Be3 5. gxh8=Q+ Ng8 6. Qxg8# 1-0
     """#, None);
 }
 
@@ -279,7 +288,7 @@ fn validate_promotion_to_rook() {
     test_parse_one_from_str(r#"""
 [Termination "Normal"]
 
-1. h4 g5 2. hxg5 Nf6 3. g6 Bh6 4. g7 Be3 5. gxh8=R+ Ng8 6. Rxg8#
+1. h4 g5 2. hxg5 Nf6 3. g6 Bh6 4. g7 Be3 5. gxh8=R+ Ng8 6. Rxg8# 1-0
     """#, None);
 }
 

@@ -363,18 +363,19 @@ impl PgnGame {
                     })
                 }
             })?;
+        }
 
-            if let Some('#') = san_plus.suffix.map(|suffix| suffix.char()) {
-                let expected_outcome = Outcome::Decisive { winner: current_player };
-                let evaluated_outcome = game.get_outcome().cloned();
+        let evaluated_outcome = game.get_outcome().cloned();
+        // The game was not terminated because of a draw offer or a forfeit
+        let forced_termination = evaluated_outcome.is_some() || self.moves.last()
+            .map(|san_plus| san_plus.suffix.map(|suffix| suffix.char()) == Some('#'))
+            .unwrap_or(false);
 
-                if Some(&expected_outcome) != evaluated_outcome.as_ref() {
-                    return Err(ValidationError::UnexpectedOutcome {
-                        expected: Some(expected_outcome),
-                        evaluated: evaluated_outcome,
-                    });
-                }
-            }
+        if forced_termination && self.outcome != evaluated_outcome {
+            return Err(ValidationError::UnexpectedOutcome {
+                expected: self.outcome.clone(),
+                evaluated: evaluated_outcome,
+            });
         }
 
         Ok(game)
