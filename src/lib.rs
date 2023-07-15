@@ -1,19 +1,19 @@
 #![feature(type_ascription)]
 #![feature(format_args_capture)]
 
-use std::fmt::{self, Display};
-use std::io::{self, Read};
-use std::collections::HashSet;
 use fairypieces_engine::{
-    board::{Transformation, SquareBoardGeometry, Isometry},
-    piece::PieceDefinitionIndex,
-    victory_conditions::Outcome,
+    board::{Isometry, SquareBoardGeometry, Transformation},
     delta::{GameStateDelta, ReversibleGameStateDelta},
     game::{Game, GameState, PlayerIndex},
     games::international_chess,
     math::{IVec2, IVecComponent},
+    piece::PieceDefinitionIndex,
+    victory_conditions::Outcome,
 };
-use pgn_reader::{Visitor, Role, San, SanPlus, Square, BufferedReader, CastlingSide, Color};
+use pgn_reader::{BufferedReader, CastlingSide, Color, Role, San, SanPlus, Square, Visitor};
+use std::collections::HashSet;
+use std::fmt::{self, Display};
+use std::io::{self, Read};
 
 #[cfg(feature = "concurrency")]
 use rayon::prelude::*;
@@ -60,29 +60,31 @@ pub enum ValidationError {
 }
 
 #[cfg(feature = "concurrency")]
-fn validate_pgn_games_parallel(pgn_games: impl Iterator<Item=Result<PgnGame, ParseError>>, initial_state: Option<GameState<SquareBoardGeometry>>) -> impl IndexedParallelIterator<Item=Result<Game<SquareBoardGeometry>, ParseError>> {
+fn validate_pgn_games_parallel(
+    pgn_games: impl Iterator<Item = Result<PgnGame, ParseError>>,
+    initial_state: Option<GameState<SquareBoardGeometry>>,
+) -> impl IndexedParallelIterator<Item = Result<Game<SquareBoardGeometry>, ParseError>> {
     let pgn_games: Vec<_> = pgn_games.collect();
 
     pgn_games.into_par_iter().map(move |result| {
         let initial_state = &initial_state;
 
-        result.and_then(|pgn_game| {
-            pgn_game.validate(initial_state.clone()).map_err(Into::into)
-        })
+        result.and_then(|pgn_game| pgn_game.validate(initial_state.clone()).map_err(Into::into))
     })
 }
 
-fn validate_pgn_games_sequential(pgn_games: impl Iterator<Item=Result<PgnGame, ParseError>>, initial_state: Option<GameState<SquareBoardGeometry>>) -> impl Iterator<Item=Result<Game<SquareBoardGeometry>, ParseError>> {
+fn validate_pgn_games_sequential(
+    pgn_games: impl Iterator<Item = Result<PgnGame, ParseError>>,
+    initial_state: Option<GameState<SquareBoardGeometry>>,
+) -> impl Iterator<Item = Result<Game<SquareBoardGeometry>, ParseError>> {
     pgn_games.map(move |result| {
         let initial_state = &initial_state;
 
-        result.and_then(|pgn_game| {
-            pgn_game.validate(initial_state.clone()).map_err(Into::into)
-        })
+        result.and_then(|pgn_game| pgn_game.validate(initial_state.clone()).map_err(Into::into))
     })
 }
 
-fn parse_pgn_games(read: impl Read) -> impl Iterator<Item=Result<PgnGame, ParseError>> {
+fn parse_pgn_games(read: impl Read) -> impl Iterator<Item = Result<PgnGame, ParseError>> {
     let mut reader = BufferedReader::new(read);
     let mut parser = InternationalChessGameVisitor::new();
     let mut critical_error = false;
@@ -118,7 +120,10 @@ fn parse_pgn_games(read: impl Read) -> impl Iterator<Item=Result<PgnGame, ParseE
 ///
 /// When `Some(Err(ParseError::IoError))` is returned, the iterator is terminated and no items will
 /// follow.
-pub fn parse_games_sequential(read: impl Read, initial_state: Option<GameState<SquareBoardGeometry>>) -> impl Iterator<Item=Result<Game<SquareBoardGeometry>, ParseError>> {
+pub fn parse_games_sequential(
+    read: impl Read,
+    initial_state: Option<GameState<SquareBoardGeometry>>,
+) -> impl Iterator<Item = Result<Game<SquareBoardGeometry>, ParseError>> {
     validate_pgn_games_sequential(parse_pgn_games(read), initial_state)
 }
 
@@ -127,13 +132,19 @@ pub fn parse_games_sequential(read: impl Read, initial_state: Option<GameState<S
 /// When `Some(Err(ParseError::IoError))` is returned, the iterator is terminated and no items will
 /// follow.
 #[cfg(feature = "concurrency")]
-pub fn parse_games_parallel(read: impl Read, initial_state: Option<GameState<SquareBoardGeometry>>) -> impl IndexedParallelIterator<Item=Result<Game<SquareBoardGeometry>, ParseError>> {
+pub fn parse_games_parallel(
+    read: impl Read,
+    initial_state: Option<GameState<SquareBoardGeometry>>,
+) -> impl IndexedParallelIterator<Item = Result<Game<SquareBoardGeometry>, ParseError>> {
     validate_pgn_games_parallel(parse_pgn_games(read), initial_state)
 }
 
 /// Like `parse_games_sequential`, but collects all games into a `Vec` and fails early,
 /// discarding games parsed before the error was encountered.
-pub fn parse_games_all_sequential(read: impl Read, initial_state: Option<GameState<SquareBoardGeometry>>) -> Result<Vec<Game<SquareBoardGeometry>>, ParseError> {
+pub fn parse_games_all_sequential(
+    read: impl Read,
+    initial_state: Option<GameState<SquareBoardGeometry>>,
+) -> Result<Vec<Game<SquareBoardGeometry>>, ParseError> {
     let mut games = Vec::new();
 
     for game in parse_games_sequential(read, initial_state) {
@@ -146,7 +157,10 @@ pub fn parse_games_all_sequential(read: impl Read, initial_state: Option<GameSta
 /// Like `parse_games_parallel`, but collects all games into a `Vec` and fails early,
 /// discarding games parsed before the error was encountered.
 #[cfg(feature = "concurrency")]
-pub fn parse_games_all_parallel(read: impl Read, initial_state: Option<GameState<SquareBoardGeometry>>) -> Result<Vec<Game<SquareBoardGeometry>>, ParseError> {
+pub fn parse_games_all_parallel(
+    read: impl Read,
+    initial_state: Option<GameState<SquareBoardGeometry>>,
+) -> Result<Vec<Game<SquareBoardGeometry>>, ParseError> {
     let mut games = Vec::new();
 
     for game in parse_games_parallel(read, initial_state).collect::<Vec<_>>() {
@@ -167,7 +181,11 @@ fn just_one<I: Iterator>(mut iter: I) -> Option<I::Item> {
     }
 }
 
-fn just_one_move<I: Iterator>(mut iter: I, index: usize, san_plus: &SanPlus) -> Result<I::Item, ValidationError> {
+fn just_one_move<I: Iterator>(
+    mut iter: I,
+    index: usize,
+    san_plus: &SanPlus,
+) -> Result<I::Item, ValidationError> {
     let matched_move = iter.next().ok_or_else(|| {
         // No legal moves found.
         ValidationError::InvalidMove {
@@ -189,20 +207,25 @@ fn just_one_move<I: Iterator>(mut iter: I, index: usize, san_plus: &SanPlus) -> 
     Ok(matched_move)
 }
 
-
 fn pgn_outcome_to_fp_outcome(from: pgn_reader::Outcome) -> Outcome {
     match from {
-        pgn_reader::Outcome::Decisive { winner: Color::White }
-        => Outcome::Decisive { winner: international_chess::PLAYER_WHITE },
-        pgn_reader::Outcome::Decisive { winner: Color::Black }
-        => Outcome::Decisive { winner: international_chess::PLAYER_BLACK },
+        pgn_reader::Outcome::Decisive {
+            winner: Color::White,
+        } => Outcome::Decisive {
+            winner: international_chess::PLAYER_WHITE,
+        },
+        pgn_reader::Outcome::Decisive {
+            winner: Color::Black,
+        } => Outcome::Decisive {
+            winner: international_chess::PLAYER_BLACK,
+        },
         pgn_reader::Outcome::Draw => Outcome::Draw,
     }
 }
 
 fn role_to_piece_definition_index(role: Role) -> PieceDefinitionIndex {
-    use Role::*;
     use international_chess::*;
+    use Role::*;
 
     match role {
         Pawn => PIECE_PAWN,
@@ -220,15 +243,27 @@ fn square_to_tile(square: Square) -> IVec2 {
     [file.into(), rank.into()].into()
 }
 
-fn san_to_delta(game: &Game<SquareBoardGeometry>, index: usize, san_plus: SanPlus) -> Result<Option<ReversibleGameStateDelta<SquareBoardGeometry>>, ValidationError> {
+fn san_to_delta(
+    game: &Game<SquareBoardGeometry>,
+    index: usize,
+    san_plus: SanPlus,
+) -> Result<Option<ReversibleGameStateDelta<SquareBoardGeometry>>, ValidationError> {
     let san = san_plus.san.clone();
     let current_player = game.move_log().current_state().current_player_index();
     let next_player = (current_player + 1) % game.rules().players().get() as PlayerIndex;
 
     let result = match san {
-        San::Normal { role, file, rank, capture, to, promotion } => {
+        San::Normal {
+            role,
+            file,
+            rank,
+            capture,
+            to,
+            promotion,
+        } => {
             let src_definition_index = role_to_piece_definition_index(role);
-            let dst_definition_index = promotion.map(|role| role_to_piece_definition_index(role))
+            let dst_definition_index = promotion
+                .map(|role| role_to_piece_definition_index(role))
                 .unwrap_or(src_definition_index);
             let src: [Option<IVecComponent>; 2] = [
                 file.map(|file| file as IVecComponent),
@@ -237,52 +272,56 @@ fn san_to_delta(game: &Game<SquareBoardGeometry>, index: usize, san_plus: SanPlu
             let dst = square_to_tile(to);
 
             let available_moves = game.available_moves().moves();
-            let matched_moves = available_moves.into_iter()
-                .filter(|mv| {
-                    let delta = mv.delta();
-                    // Select changed tiles with matching destination tile
-                    let dst_piece = delta.forward().get(dst);
+            let matched_moves = available_moves.into_iter().filter(|mv| {
+                let delta = mv.delta();
+                // Select changed tiles with matching destination tile
+                let dst_piece = delta.forward().get(dst);
 
-                    if let Some(Some(dst_piece)) = dst_piece {
-                        if dst_piece.definition_index() == dst_definition_index
-                                && dst_piece.owner() == current_player {
-                            dst_piece
-                        } else {
-                            // Destination piece is not owned by the current player
-                            // or it does not match the piece definition (role) played.
-                            return false;
-                        }
+                if let Some(Some(dst_piece)) = dst_piece {
+                    if dst_piece.definition_index() == dst_definition_index
+                        && dst_piece.owner() == current_player
+                    {
+                        dst_piece
                     } else {
-                        // The destination piece is either unaffected or unset.
+                        // Destination piece is not owned by the current player
+                        // or it does not match the piece definition (role) played.
                         return false;
-                    };
-
-                    if !capture && !promotion.is_some() {
-                        // A regular move should only affect a piece of a single kind.
-                        // This disambiguates castling from rook moves near the king.
-                        let affected_piece_kinds = delta.forward().iter()
-                            .filter_map(|(_, piece)| piece.as_ref())
-                            .map(|piece| piece.definition_index())
-                            .collect::<HashSet<_>>()
-                            .len();
-
-                        if affected_piece_kinds > 1 {
-                            return false;
-                        }
                     }
+                } else {
+                    // The destination piece is either unaffected or unset.
+                    return false;
+                };
 
-                    let current_srcs = delta.backward().iter()
-                        .filter(|(tile, piece)| {
-                            piece.as_ref().map(|piece| {
-                                piece.definition_index() == src_definition_index
-                                    && piece.owner() == current_player
-                            }).unwrap_or(false)
-                                && src[0].map(|x| x == tile[0]).unwrap_or(true)
-                                && src[1].map(|x| x == tile[1]).unwrap_or(true)
-                        });
+                if !capture && !promotion.is_some() {
+                    // A regular move should only affect a piece of a single kind.
+                    // This disambiguates castling from rook moves near the king.
+                    let affected_piece_kinds = delta
+                        .forward()
+                        .iter()
+                        .filter_map(|(_, piece)| piece.as_ref())
+                        .map(|piece| piece.definition_index())
+                        .collect::<HashSet<_>>()
+                        .len();
 
-                    just_one(current_srcs).is_some()
+                    if affected_piece_kinds > 1 {
+                        return false;
+                    }
+                }
+
+                let current_srcs = delta.backward().iter().filter(|(tile, piece)| {
+                    piece
+                        .as_ref()
+                        .map(|piece| {
+                            piece.definition_index() == src_definition_index
+                                && piece.owner() == current_player
+                        })
+                        .unwrap_or(false)
+                        && src[0].map(|x| x == tile[0]).unwrap_or(true)
+                        && src[1].map(|x| x == tile[1]).unwrap_or(true)
                 });
+
+                just_one(current_srcs).is_some()
+            });
 
             let matched_move = just_one_move(matched_moves, index, &san_plus)?;
 
@@ -310,15 +349,24 @@ fn san_to_delta(game: &Game<SquareBoardGeometry>, index: usize, san_plus: SanPlu
 
             pattern.set(isometry.apply(src_king), None);
             pattern.set(isometry.apply(src_rook), None);
-            pattern.set(isometry.apply(dst_king), current_state.tile(game.rules().board(), isometry.apply(src_king))
-                .and_then(|piece| piece.get_piece().cloned()));
-            pattern.set(isometry.apply(dst_rook), current_state.tile(game.rules().board(), isometry.apply(src_rook))
-                .and_then(|piece| piece.get_piece().cloned()));
+            pattern.set(
+                isometry.apply(dst_king),
+                current_state
+                    .tile(game.rules().board(), isometry.apply(src_king))
+                    .and_then(|piece| piece.get_piece().cloned()),
+            );
+            pattern.set(
+                isometry.apply(dst_rook),
+                current_state
+                    .tile(game.rules().board(), isometry.apply(src_rook))
+                    .and_then(|piece| piece.get_piece().cloned()),
+            );
 
             pattern.push_affecting_move(move_index);
 
             let available_moves = game.available_moves().moves_from(isometry.apply(src_king));
-            let matched_moves = available_moves.into_iter()
+            let matched_moves = available_moves
+                .into_iter()
                 .filter(|available_move| pattern.is_part_of(available_move.delta().forward()))
                 .cloned();
             let matched_move = just_one_move(matched_moves, index, &san_plus)?;
@@ -328,7 +376,7 @@ fn san_to_delta(game: &Game<SquareBoardGeometry>, index: usize, san_plus: SanPlu
         San::Put { role: _, to: _ } => {
             unimplemented!("\"Put\" moves are not implemented.");
         }
-        San::Null => { return Ok(None) }
+        San::Null => return Ok(None),
     };
 
     Ok(Some(result))
@@ -341,7 +389,10 @@ pub struct PgnGame {
 }
 
 impl PgnGame {
-    pub fn validate(&self, initial_state: Option<GameState<SquareBoardGeometry>>) -> Result<Game<SquareBoardGeometry>, ValidationError> {
+    pub fn validate(
+        &self,
+        initial_state: Option<GameState<SquareBoardGeometry>>,
+    ) -> Result<Game<SquareBoardGeometry>, ValidationError> {
         let mut game = if let Some(initial_state) = initial_state {
             Game::new(international_chess::GAME.rules().clone(), initial_state)
         } else {
@@ -367,9 +418,12 @@ impl PgnGame {
 
         let evaluated_outcome = game.get_outcome().cloned();
         // The game was not terminated because of a draw offer or a forfeit
-        let forced_termination = evaluated_outcome.is_some() || self.moves.last()
-            .map(|san_plus| san_plus.suffix.map(|suffix| suffix.char()) == Some('#'))
-            .unwrap_or(false);
+        let forced_termination = evaluated_outcome.is_some()
+            || self
+                .moves
+                .last()
+                .map(|san_plus| san_plus.suffix.map(|suffix| suffix.char()) == Some('#'))
+                .unwrap_or(false);
 
         if forced_termination && self.outcome != evaluated_outcome {
             return Err(ValidationError::UnexpectedOutcome {
@@ -388,9 +442,7 @@ struct InternationalChessGameVisitor {
 
 impl InternationalChessGameVisitor {
     fn new() -> Self {
-        Self {
-            game: None,
-        }
+        Self { game: None }
     }
 }
 
