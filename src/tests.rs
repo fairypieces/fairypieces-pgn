@@ -98,7 +98,7 @@ fn list_moves(
         game.available_moves().moves().cloned().collect()
     };
 
-    println!("Board:\n{game}", game = SquareBoardGeometry::print(&game));
+    println!("Board:\n{game}", game = SquareBoardGeometry::print(game));
 
     if let Some(expected_len) = expected_len {
         assert_eq!(expected_len, moves.len());

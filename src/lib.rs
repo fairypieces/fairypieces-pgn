@@ -1,5 +1,4 @@
 #![feature(type_ascription)]
-#![feature(format_args_capture)]
 
 use fairypieces_engine::{
     board::{Isometry, SquareBoardGeometry, Transformation},
@@ -12,7 +11,6 @@ use fairypieces_engine::{
 };
 use pgn_reader::{BufferedReader, CastlingSide, Color, Role, San, SanPlus, Square, Visitor};
 use std::collections::HashSet;
-use std::fmt::{self, Display};
 use std::io::{self, Read};
 
 #[cfg(feature = "concurrency")]
@@ -195,7 +193,7 @@ fn just_one_move<I: Iterator>(
         }
     })?;
 
-    if let Some(_) = iter.next() {
+    if iter.next().is_some() {
         // Found another legal move.
         return Err(ValidationError::InvalidMove {
             index,
@@ -263,7 +261,7 @@ fn san_to_delta(
         } => {
             let src_definition_index = role_to_piece_definition_index(role);
             let dst_definition_index = promotion
-                .map(|role| role_to_piece_definition_index(role))
+                .map(role_to_piece_definition_index)
                 .unwrap_or(src_definition_index);
             let src: [Option<IVecComponent>; 2] = [
                 file.map(|file| file as IVecComponent),
@@ -292,7 +290,7 @@ fn san_to_delta(
                     return false;
                 };
 
-                if !capture && !promotion.is_some() {
+                if !capture && promotion.is_none() {
                     // A regular move should only affect a piece of a single kind.
                     // This disambiguates castling from rook moves near the king.
                     let affected_piece_kinds = delta
@@ -401,7 +399,6 @@ impl PgnGame {
 
         for (index, san_plus) in self.moves.iter().cloned().enumerate() {
             // println!("Validating move: {:?}", san_plus);
-            let current_player = game.move_log().current_state().current_player_index();
             san_to_delta(&game, index, san_plus.clone()).and_then(|delta| {
                 if let Some(delta) = delta {
                     game.append_delta(delta).unwrap();
@@ -475,7 +472,7 @@ impl Visitor for InternationalChessGameVisitor {
 
     fn outcome(&mut self, outcome: Option<pgn_reader::Outcome>) {
         if let Some(game) = self.game.as_mut() {
-            game.outcome = outcome.map(|outcome| pgn_outcome_to_fp_outcome(outcome));
+            game.outcome = outcome.map(pgn_outcome_to_fp_outcome);
         }
     }
 }
